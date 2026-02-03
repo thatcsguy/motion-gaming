@@ -47,8 +47,8 @@ class InputController:
         # Try to initialize Windows input
         try:
             self._windows_input = WindowsInput()
-        except OSError:
-            # Not on Windows, will use mock/print mode
+        except (OSError, AttributeError):
+            # Not on Windows (AttributeError: no ctypes.windll), will silently skip
             pass
 
     def set_movement(self, direction: Optional[Direction]) -> None:
