@@ -12,6 +12,7 @@ dependencies = [
     "mediapipe>=0.10.0",
     "opencv-python>=4.8.0",
     "numpy>=1.24.0",
+    "pydirectinput>=1.0.4; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

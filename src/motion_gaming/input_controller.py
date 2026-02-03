@@ -1,34 +1,30 @@
-"""Input simulation for sending keypresses to Windows."""
+"""Input simulation for sending keypresses to games via DirectInput."""
 
 import time
 from typing import Optional
 
 from motion_gaming.gesture_recognizer import Direction
 
+# Try to import pydirectinput for DirectInput scan code support
+# This is required for games like FFXIV that ignore virtual key codes
+try:
+    import pydirectinput
 
-# Virtual key codes for Windows
-VK_CODES = {
-    "W": 0x57,
-    "A": 0x41,
-    "S": 0x53,
-    "D": 0x44,
-    "1": 0x31,
-    "2": 0x32,
-    "3": 0x33,
-    "4": 0x34,
-    "5": 0x35,
-}
+    pydirectinput.PAUSE = 0  # Disable default pause between actions
+    HAS_DIRECTINPUT = True
+except ImportError:
+    HAS_DIRECTINPUT = False
 
-# Direction to key mapping
+# Direction to key mapping (lowercase for pydirectinput)
 DIRECTION_KEYS: dict[Direction, list[str]] = {
-    Direction.NORTH: ["W"],
-    Direction.SOUTH: ["S"],
-    Direction.WEST: ["A"],
-    Direction.EAST: ["D"],
-    Direction.NORTHEAST: ["W", "D"],
-    Direction.NORTHWEST: ["W", "A"],
-    Direction.SOUTHEAST: ["S", "D"],
-    Direction.SOUTHWEST: ["S", "A"],
+    Direction.NORTH: ["w"],
+    Direction.SOUTH: ["s"],
+    Direction.WEST: ["a"],
+    Direction.EAST: ["d"],
+    Direction.NORTHEAST: ["w", "d"],
+    Direction.NORTHWEST: ["w", "a"],
+    Direction.SOUTHEAST: ["s", "d"],
+    Direction.SOUTHWEST: ["s", "a"],
 }
 
 
@@ -42,14 +38,10 @@ class InputController:
         self._current_movement_keys: set[str] = set()
         self._current_ability: int = 0
         self._last_ability_time: float = 0.0
-        self._windows_input: Optional["WindowsInput"] = None
+        self._input_available = HAS_DIRECTINPUT
 
-        # Try to initialize Windows input
-        try:
-            self._windows_input = WindowsInput()
-        except (OSError, AttributeError):
-            # Not on Windows (AttributeError: no ctypes.windll), will silently skip
-            pass
+        if not self._input_available:
+            print("Warning: pydirectinput not available. Install with: pip install pydirectinput")
 
     def set_movement(self, direction: Optional[Direction]) -> None:
         """Set movement based on pointing direction.
@@ -108,69 +100,11 @@ class InputController:
             self._current_ability = 0
 
     def _press_key(self, key: str) -> None:
-        """Press a key."""
-        if self._windows_input:
-            self._windows_input.press_key(VK_CODES[key])
-        # Silently ignore if not on Windows
+        """Press a key using DirectInput."""
+        if self._input_available:
+            pydirectinput.keyDown(key)
 
     def _release_key(self, key: str) -> None:
-        """Release a key."""
-        if self._windows_input:
-            self._windows_input.release_key(VK_CODES[key])
-        # Silently ignore if not on Windows
-
-
-class WindowsInput:
-    """Windows-specific input simulation using SendInput."""
-
-    def __init__(self) -> None:
-        """Initialize Windows input. Raises OSError if not on Windows."""
-        import ctypes
-        import ctypes.wintypes
-
-        self._user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-        self._ctypes = ctypes
-
-        # Input structure for SendInput
-        self._KEYEVENTF_KEYUP = 0x0002
-        self._INPUT_KEYBOARD = 1
-
-    def press_key(self, vk_code: int) -> None:
-        """Press a key down."""
-        self._send_key_event(vk_code, 0)
-
-    def release_key(self, vk_code: int) -> None:
-        """Release a key."""
-        self._send_key_event(vk_code, self._KEYEVENTF_KEYUP)
-
-    def _send_key_event(self, vk_code: int, flags: int) -> None:
-        """Send a keyboard event."""
-        import ctypes
-
-        # KEYBDINPUT structure
-        class KEYBDINPUT(ctypes.Structure):
-            _fields_ = [
-                ("wVk", ctypes.c_ushort),
-                ("wScan", ctypes.c_ushort),
-                ("dwFlags", ctypes.c_ulong),
-                ("time", ctypes.c_ulong),
-                ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
-            ]
-
-        # INPUT structure
-        class INPUT(ctypes.Structure):
-            _fields_ = [
-                ("type", ctypes.c_ulong),
-                ("ki", KEYBDINPUT),
-            ]
-
-        ki = KEYBDINPUT(
-            wVk=vk_code,
-            wScan=0,
-            dwFlags=flags,
-            time=0,
-            dwExtraInfo=ctypes.pointer(ctypes.c_ulong(0)),
-        )
-        inp = INPUT(type=self._INPUT_KEYBOARD, ki=ki)
-
-        self._user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
+        """Release a key using DirectInput."""
+        if self._input_available:
+            pydirectinput.keyUp(key)
